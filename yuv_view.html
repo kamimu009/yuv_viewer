@@ -1,0 +1,94 @@
+<head>
+  <title> YUV viewer </title>
+</head>
+
+<body>
+  <form name="uploadForm">
+    <div>
+      <input id="yuv_width" type="number" value="1980" onchange="update();">
+      x
+      <input id="yuv_heigt" type="number" value="1080" onchange="update();">
+      <input id="uploadInput" type="file" name="myFiles" onchange="update();">
+    </div>
+  </form>
+  <a id="download-link" href="" download="">画像としてダウンロード</a>
+  <div>
+    <canvas id="target"></canvas>
+  </div>
+
+
+
+  <script type="text/javascript">
+    document.getElementById('download-link').addEventListener('click', (e) => {
+      console.log('click');
+      const a = e.target;
+      const canvas = document.getElementById('target');
+      a.href = canvas.toDataURL();
+      a.download = document.getElementById("uploadInput").files[0].name + '.png';
+    });
+
+    function getPlaneYuv420(blob, w, h) {
+      yData = new Uint8Array(blob.slice(0, w * h));
+      vData = new Uint8Array(blob.slice(w * h));
+      uData = new Uint8Array(blob.slice(w * h + (w / 2 * h / 2)));
+
+      cr = new Uint8Array(w * h);
+      cb = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) {
+        const srcY = Math.floor(y / 2);
+        for (let x = 0; x < w; x++) {
+          const srcX = Math.floor((x / 2));
+          const srcW = Math.floor((w / 2));
+          const srcOffset = srcX + (srcY * srcW);
+          cr[x + (y * w)] = uData[srcOffset];
+          cb[x + (y * w)] = vData[srcOffset];
+        }
+      }
+
+      return [yData, cr, cb];
+    }
+
+    function update() {
+      let reader = new FileReader();
+      reader.readAsArrayBuffer(
+        document.getElementById("uploadInput").files[0]
+      );
+      reader.onload = () => {
+        render(
+          reader.result,
+          document.getElementById("yuv_width").value,
+          document.getElementById("yuv_heigt").value
+        );
+      }
+
+    }
+
+    function render(blob, w, h) {
+      const c = document.getElementById('target');
+      c.width = w;
+      c.height = h;
+      var ctx = c.getContext('2d');
+      const img = new Image();
+      ctx.drawImage(img, 0, 0);
+
+      ctx.fillStyle = "rgb(0, 0, 0)";
+      ctx.fillRect(0, 0, c.width, c.height);
+
+      var imageData = ctx.getImageData(0, 0, c.width, c.height);
+      var data = imageData.data;
+
+      [yData, cr, cb] = getPlaneYuv420(blob, w, h);
+
+      let n = 0;
+      for (var i = 0; i < data.length; i += 4) {
+        data[i + 0] = (1.164 * (yData[n] - 16)) + (1.793 * (cr[n] - 128)); // r 
+        data[i + 1] = (1.164 * (yData[n] - 16)) - (0.213 * (cb[n] - 128)) - (0.533 * (cr[n] - 128)); // g
+        data[i + 2] = (1.164 * (yData[n] - 16)) + (2.112 * (cb[n] - 128)); // b
+        n++;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+
+  </script>
+</body>
